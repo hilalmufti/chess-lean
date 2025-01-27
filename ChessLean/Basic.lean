@@ -10,14 +10,7 @@ inductive Piece where
   | bishop : Piece
   | knight : Piece
   | pawn : Piece
-deriving Inhabited, DecidableEq, BEq, Hashable, Repr
 
-
-inductive Move where
-  | up : Move
-  | right : Move
-  | diagR : Move
-  | diagL : Move
 
 def Piece.toChar : Piece → Char
   | Piece.king => 'K'
@@ -50,7 +43,7 @@ instance : Inhabited Square where
 def Square.toString (s : Square) : String :=
   match s with
   -- | none => "⬝"
-  | none => "⬝"
+  | none => "."
   | some p => p.toString
 
 
@@ -69,33 +62,48 @@ def Board.empty : Board := List.replicate 8 (List.replicate 8 none)
 
 def r : List Square := [some Piece.rook, some Piece.knight, some Piece.bishop, some Piece.queen,
                         some Piece.king, some Piece.bishop, some Piece.knight, some Piece.rook]
-def ps : List Square := [some Piece.pawn, some Piece.pawn, some Piece.pawn, some Piece.pawn, some Piece.pawn,
-                         some Piece.pawn, some Piece.pawn, some Piece.pawn]
+def ps : List Square := List.replicate 8 (some Piece.pawn)
 def blank : List Square := List.replicate 8 none
 def b : Board := [r, ps, blank, blank, blank, blank, ps, r]
+def btest : Board := [r,
+                      ps,
+                      blank,
+                      blank,
+                      [none, none, none, some Piece.king, none, none, none, none],
+                      blank,
+                      ps,
+                      r]
 
 def Board.starting : Board := b
 
 
-def join (xs : List String) (s : String) : String :=
-  (xs.foldl (λ acc x => acc ++ x ++ s) "").dropRight s.length
+def String.join' (xs : List String) (s : String) : String :=
+  let rec go (xs : List String) (acc : String) : String :=
+    match xs with
+    | [] => acc
+    | x :: [] => acc ++ x
+    | x :: xs => go xs (acc ++ x ++ s)
+  go xs ""
 
 
-def mtx2string (xss : List (List String)) : String :=
-  join (List.map (λ xs => join xs " ") xss) "\n"
+def assocs_toString (xss : List (List String)) : String :=
+  let rec go (xss : List (List String)) (acc : List String) : List String :=
+    match xss with
+    | [] => List.reverse acc
+    | xs :: xss => go xss ((" ".join' xs) :: acc)
+
+  "\n".join' (go xss [])
 
 
 -- TODO: Why does this not work on #eval?
 def Board.toString (b : Board) : String :=
-  mtx2string (List.map (λ row => List.map (λ p => p.toString) row) b)
+  assocs_toString (List.map (List.map Square.toString) b)
 
 
 -- TODO: make this nontrivial
 def Board.valid (b : Board) (idx : Nat × Nat) : Prop :=
   sorry
 
-
--- TODO: implement this, and get notation for it
 
 instance : GetElem Board Nat (List Square) (λ b idx => True) where
   getElem board i h := board.get! i
@@ -104,39 +112,47 @@ instance : GetElem Board Nat (List Square) (λ b idx => True) where
 instance : GetElem Board (Nat × Nat) Square (λ b idx => True) where
   getElem board pos h :=
     let (i, j) := pos
-    let row := List.get! board i
-    List.get! row j
+    List.get! (List.get! board i) j
 
 
 instance : ToString Board where
   toString b := Board.toString b
 
 
--- instance : GetElem Board (Nat × Nat) Square ()
---   getElem b (i j) := (b.get! ij.fst).get! ij.snd
+def List.fsts {α β : Type} : List (α × β) -> List α
+  | [] => []
+  | (a, _) :: xs => a :: List.fsts xs
 
 
-#eval List.range 8
+def List.snds {α β : Type} : List (α × β) -> List β
+  | [] => []
+  | (_, b) :: xs => b :: List.snds xs
 
 
--- moves 1 1 1 1 1 1 1 1 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
--- moves
+def dx (n : Nat) : List (Int × Int) :=
+  let rec go (n : Nat) (acc : List (Int × Int)) : List (Int × Int) :=
+    match n with
+    | 0 => acc
+    | Nat.succ 0 => acc
+    | Nat.succ n' => go n' ((n', 0) :: (-n', 0) :: acc)
+  go (n + 1) []
 
 
-def moveH (n : Nat) : List (Int × Int) :=
-  List.flatten [List.range (n + 1) |>.tail |>.map (λ i => (0, Int.ofNat i)), List.range (n + 1) |>.tail |>.map (λ i => (0, -Int.ofNat i))]
+def dy (n : Nat) : List (Int × Int) :=
+  List.map Prod.swap (dx n)
 
-def moveV (n : Nat) : List (Int × Int) :=
-  List.flatten [List.range (n + 1) |>.tail |>.map (λ i => (Int.ofNat i, 0)), List.range (n + 1) |>.tail |>.map (λ i => (-Int.ofNat i, 0))]
 
-def moveD (n : Nat) : List (Int × Int) :=
-  List.flatten [List.range (n + 1) |>.tail |>.map (λ i => (Int.ofNat i, Int.ofNat i)), List.range (n + 1) |>.tail |>.map (λ i => (-Int.ofNat i, -Int.ofNat i)),
-                List.range (n + 1) |>.tail |>.map (λ i => (-Int.ofNat i, Int.ofNat i)), List.range (n + 1) |>.tail |>.map (λ i => (Int.ofNat i, -Int.ofNat i))]
+def dxy (n : Nat) : List (Int × Int) :=
+  let rec go (n : Nat) (acc : List (Int × Int)) : List (Int × Int) :=
+    match n with
+    | 0 => acc -- TODO: I shouldn't need this
+    | Nat.succ 0 => acc
+    | Nat.succ n' => go n'  ((n', n') :: (n', -n') :: (-n', n') :: (-n', -n') :: acc)
+  go (n + 1) []
 
-#eval moveD 3
 
-def deltas (h v d : Nat) : List (Int × Int) :=
-  List.flatten [moveH h, moveV v, moveD d]
+def deltas (x y xy : Nat) : List (Int × Int) :=
+  dx x ++ dy y ++ dxy xy
 
 
 def Piece.delta : Piece -> List (Int × Int)
@@ -144,24 +160,37 @@ def Piece.delta : Piece -> List (Int × Int)
   | Piece.queen => deltas 8 8 8
   | Piece.rook => deltas 8 8 0
   | Piece.bishop => deltas 0 0 8
-  | Piece.knight => [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)] -- TODO: check
-  | Piece.pawn => [(2, 0), (1, 0)] -- TODO: add black/white
+  | Piece.knight => [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)] -- TODO: can rewrite as cartesian product
+  | Piece.pawn => deltas 2 0 0
 
 
-#eval Piece.bishop.delta
+#eval Piece.pawn.delta
+
+
+def neg? (x : Int) : Bool :=
+  x < 0
 
 
 def inBoard? (i j : Int) : Bool :=
-  i >= 0 && i < 8 && j >= 0 && j < 8
+  List.all [i, j] (λ x => 0 <= x && x < 8)
+
+
+def getMoves (i j : Nat) (ds : List (Int × Int)) : List (Nat × Nat) :=
+  let rec go (ds : List (Int × Int)) (acc : List (Nat × Nat)) : List (Nat × Nat) :=
+    match ds with
+    | [] => acc
+    | (di, dj) :: ds =>
+      let i' := i + di
+      let j' := j + dj
+      if inBoard? i' j' then
+        go ds ((i'.toNat, j'.toNat) :: acc)
+      else
+        go ds acc
+  go ds []
 
 
 def Piece.moves (p : Piece) (i j : Nat) : List (Nat × Nat) :=
-  -- let valid? (di dj : Int) (i j : Nat) : Bool :=
-    -- inBoard? (i + di) (j + dj) &&
-  p.delta.map (λ (di, dj) => ((Int.ofNat i) + di, (Int.ofNat j) + dj)) |> List.filter (λ (i, j) => inBoard? i j) |> List.map (λ (i, j) => (i.toNat, j.toNat))
-
-
-#eval Piece.moves Piece.knight 0 0
+  getMoves i j p.delta
 
 
 def Board.piece? (b : Board) (i j : Nat) : Bool :=
@@ -170,31 +199,8 @@ def Board.piece? (b : Board) (i j : Nat) : Bool :=
   | _ => true
 
 
-def validH? (b : Board) (i j : Nat) (di : Nat) : Bool :=
-  sorry
-
-
-#eval List.range' (5 + 1) 3 |>.map (λ i => (5, i))
-
-
 def abs (x : Int) : Int :=
   if x > 0 then x else (-x)
-
-
-partial def posV (i j : Int) (dj : Int) : List (Nat × Nat) :=
-  if dj >= 0 then
-    List.range' (j + 1).toNat dj.toNat |>.map (λ j' => (i.toNat, j'))
-  else if j + dj >= 0 then
-    posV i (j + dj - 1) (-dj)
-  else
-    []
-
-
-#eval posV 5 5 (-1)
-
-
-def posH (i j : Int) (di : Int) : List (Nat × Nat) :=
-  posV j i di |>.map (λ (j, i) => (i, j))
 
 
 def inc (x : Int) : Int :=
@@ -205,11 +211,9 @@ def dec (x : Int) : Int :=
   x - 1
 
 
-def neg? (x : Int) : Bool :=
-  x < 0
-
 def pos? (x : Int) : Bool :=
   x > 0
+
 
 def Nat.pos? (x : Nat) : Bool :=
   x > 0
@@ -219,122 +223,122 @@ def complement (f : Int -> Bool) : Int -> Bool :=
   λ x => !f x
 
 
-partial def parseIdx (i : Int) (di : Int) : Option (Nat × Nat) :=
-  if List.all [i, di] (complement neg?) then
-    match List.map Int.toNat [i, di] with
-    | [i, di] => some (i, di)
-    | _ => none
-  else if neg? di then
-    parseIdx (i + di) (-di)
+def nonneg? : Int -> Bool :=
+  complement neg?
+
+
+def dist (x y : Nat) : Nat :=
+  if x > y then
+    x - y
   else
-    none
+    y - x
 
 
-partial def parsePos (i j : Int) (di dj : Int) : Option ((Nat × Nat) × (Nat × Nat)) :=
-  match parseIdx i di, parseIdx j dj with
-  | some (i, di), some (j, dj) => some ((i, j), (di, dj))
-  | _, _ => none
+def blockX? (b : Board) (i j : Nat) (n : Nat) : Bool :=
+  let rec go (j : Nat) (n : Nat) : Bool :=
+    match n with
+    | 0 => false
+    | Nat.succ n' => match b[i][j]! with
+      | none => go (Nat.succ j) n'
+      | _ => true
+  go (Nat.succ j) n
 
 
-#eval (parsePos 1 2 3 4)
-
--- bottom right
-partial def diagR (i j : Nat) (d : Nat) : List (Nat × Nat) :=
-  List.zip (List.range' i (d + 1)) (List.range' j (d + 1))
-
-
--- bottom left
-partial def diagL (i j : Nat) (d : Nat) : List (Nat × Nat) :=
-  List.zip (List.range' i (d + 1)) (List.range' (j - d) (d + 1)).reverse
-
-
-partial def right (i j : Nat) (d : Nat) : List (Nat × Nat) :=
-  List.range' j (d + 1) |>.map (λ j' => (i, j'))
-
-
--- TODO: strengthen precondition
-partial def up (i j : Nat) (d : Nat) : List (Nat × Nat) :=
-  List.map Prod.swap (right j (i - d) d)
+def filterX (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
+  let rec go (ms : List (Nat × Nat)) (acc : List (Nat × Nat)) : List (Nat × Nat) :=
+    match ms with
+    | [] => acc
+    | (i', j') :: ms =>
+      if i == i' then
+        if blockX? b i (min j j') (dist j j') then
+          go ms acc
+        else
+          go ms ((i', j') :: acc)
+      else
+        go ms ((i', j') :: acc)
+  go xs []
 
 
--- expect itop < ibot
-def btwnUp  (ibot jleft : Nat) (itop jright : Nat) : List (Nat × Nat) :=
-  up ibot jleft (ibot - itop) |>.filter (λ (i, j) => (i, j) ≠ (ibot, jleft) && (i, j) ≠ (itop, jright))
+-- TODO: refactor
+def blockY? (b : Board) (i j : Nat) (n : Nat) : Bool :=
+  let rec go (i : Nat) (n : Nat) : Bool :=
+    match n with
+    | 0 => false
+    | Nat.succ n' => match b[i][j]! with
+      | none => go (Nat.succ i) n'
+      | _ => true
+  go (Nat.succ i) n
 
 
--- expect jleft < jright
-def btwnRight (ibot jleft : Nat) (itop jright : Nat) : List (Nat × Nat) :=
-  right jleft ibot (jright - jleft) |>.filter (λ (i, j) => (i, j) ≠ (ibot, jleft) && (i, j) ≠ (itop, jright))
+def filterY (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
+  let rec go (ms : List (Nat × Nat)) (acc : List (Nat × Nat)) : List (Nat × Nat) :=
+    match ms with
+    | [] => acc
+    | (i', j') :: ms =>
+      if j == j' then
+        if blockY? b (min i i') j (dist i i') then
+          go ms acc
+        else
+          go ms ((i', j') :: acc)
+      else
+        go ms ((i', j') :: acc)
+  go xs []
 
 
-def btwnDiagR (itop jleft : Nat) (ibot jright : Nat) : List (Nat × Nat) :=
-  diagR itop jleft (ibot - itop) |>.filter (λ (i, j) => (i, j) ≠ (itop, jleft) && (i, j) ≠ (ibot, jright))
+def blockXY? (b : Board) (i j : Nat) (n : Nat) : Bool :=
+  let rec go (i j : Nat) (n : Nat) : Bool :=
+    match n with
+    | 0 => false
+    | Nat.succ n' => match b[i][j]! with
+      | none => go (Nat.succ i) (Nat.succ j) n'
+      | _ => true
+  go (Nat.succ i) (Nat.succ j) n
 
 
-def btwnDiagL (itop jright : Nat) (ibot jleft : Nat) : List (Nat × Nat) :=
-  diagL itop jright (ibot - itop) |>.filter (λ (i, j) => (i, j) ≠ (itop, jright) && (i, j) ≠ (ibot, jleft))
+-- TODO: I think this is wrong? Specifically the dist part
+def filterXY (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
+  let rec go (ms : List (Nat × Nat)) (acc : List (Nat × Nat)) : List (Nat × Nat) :=
+    match ms with
+    | [] => acc
+    | (i', j') :: ms =>
+      if (dist i i') == (dist j j') && (i < i' && j < j' || i > i' && j > j') then
+        if blockXY? b (min i i') (min j j') (dist i i') then
+          go ms acc
+        else
+          go ms ((i', j') :: acc)
+      else
+        go ms ((i', j') :: acc)
+  go xs []
 
 
-def up? (b : Board) (ibot jleft : Nat) (itop jright : Nat) : Bool :=
-  if ibot < itop then
-    up? b itop jright ibot jleft
-  else
-    let btwn := btwnUp ibot jleft itop jright
-    btwn.all (λ (i, j) => !b.piece? i j)
+-- TODO: check super negative case
+def blockXY'? (b : Board) (i j : Nat) (n : Nat) : Bool :=
+  let rec go (i j : Nat) (n : Nat) : Bool :=
+    match n with
+    | 0 => false
+    | Nat.succ n' => match b[i][j]! with
+      | none => go (Nat.succ i) (j - 1) n'
+      | _ => true
+  go (Nat.succ i) (Nat.succ j) n
 
 
-def right? (b : Board) (ibot jleft : Nat) (itop jright : Nat) : Bool :=
-  if jright < jleft then
-    right? b itop jright ibot jleft
-  else
-    let btwn := btwnRight ibot jleft itop jright
-    btwn.all (λ (i, j) => !b.piece? i j)
+def filterXY' (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
+  let rec go (ms : List (Nat × Nat)) (acc : List (Nat × Nat)) : List (Nat × Nat) :=
+    match ms with
+    | [] => acc
+    | (i', j') :: ms =>
+      if (dist i i') == (dist j j') && (i < i' && j > j' || i > i' && j < j') then
+        if blockXY'? b (min i i') (max j j') (dist i i') then
+          go ms acc
+        else
+          go ms ((i', j') :: acc)
+      else
+        go ms ((i', j') :: acc)
+  go xs []
 
 
-def diagR? (b : Board) (itop jleft : Nat) (ibot jright : Nat) : Bool :=
-  if ibot < itop then
-    diagR? b ibot jright itop jleft
-  else
-    let btwn := btwnDiagR itop jleft ibot jright
-    btwn.all (λ (i, j) => !b.piece? i j)
-
-
-def diagL? (b : Board) (itop jright : Nat) (ibot jleft : Nat) : Bool :=
-  if jright < jleft then
-    diagL? b ibot jleft itop jright
-  else
-    let btwn := btwnDiagL itop jright ibot jleft
-    btwn.all (λ (i, j) => !b.piece? i j)
-
-
-def btest : Board := [r,
-                      ps,
-                      blank,
-                      [none, none, none, some Piece.king, none, none, none, none],
-                      blank,
-                      blank,
-                      ps,
-                      r]
-
-
-def filterPieces (b : Board) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
-  xs.filter (λ (i, j) => !b.piece? i j)
-
-
-def filterBlockingVertical (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
-  xs.filter (λ (i', j') => up? b i j i' j')
-
-
-def filterBlockingHorizontal (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
-  xs.filter (λ (i', j') => right? b i j i' j')
-
-
-def filterBlockingDiagonal (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
-  xs.filter (λ (i', j') => diagR? b i j i' j')
-
-
--- TODO: test
--- TODO: need to add diagonal checks
+-- TODO: clean this up
+-- TODO: add black/white and not taking your own piece
 def Board.moves (b : Board) (i j : Nat) : List (Nat × Nat) :=
   match b[i][j]! with
   | none => []
@@ -342,19 +346,22 @@ def Board.moves (b : Board) (i j : Nat) : List (Nat × Nat) :=
     let ms := p.moves i j
     match p with
     | Piece.king => ms
-    | Piece.queen => ms |> filterBlockingVertical b i j |> filterBlockingHorizontal b i j |> filterBlockingDiagonal b i j
-    | Piece.rook => ms |> filterBlockingVertical b i j |> filterBlockingHorizontal b i j
-    | Piece.bishop => ms |> filterBlockingDiagonal b i j
+    | Piece.queen => ms |> filterY b i j |> filterX b i j |> filterXY b i j |> filterXY' b i j
+    | Piece.rook => ms |> filterY b i j |> filterX b i j
+    | Piece.bishop => ms |> filterXY b i j |> filterXY' b i j
     | Piece.knight => ms
-    | Piece.pawn => ms -- TODO: add black/white
+    | Piece.pawn => ms
 
 
 partial def Board.set_row (b : Board) (i : Nat) (row : List Square) : Board :=
   b.set i row
 
+
+-- TODO: check
 def Board.set (b : Board) (i j : Nat) (s : Square) : Board :=
-  let row := (b.get! i).set j s
-  b.set_row i row
+  let row := b[i]!
+  let row' := row.set j s
+  b.set_row i row'
 
 
 -- TODO: add features
@@ -362,28 +369,25 @@ def Board.show (b : Board) : IO Unit :=
   IO.println (Board.toString b)
 
 
-#eval btest.show
-
-#eval up? btest 3 3 1 3
-
-#eval right? btest 4 0 4 8
-
-#eval diagL? btest 1 5 3 3
-
-#eval diagR? btest 1 1 4 4
-
-
-
 def Board.move (b : Board) (x1 y1 : Nat) (x2 y2 : Nat) : Board :=
-  (b.set x2 y2 b[x1][y1]!).set x1 y1 none
+  let p := b[x1][y1]!
+  let b' := b.set x2 y2 p
+  b'.set x1 y1 none
 
 
 def Char.parseNat (c : Char) : Nat :=
   (c.toNat - '0'.toNat)
 
 
-def parseMove (s : List Char) : Nat × Nat :=
-  ((s.get! 0).parseNat, (s.get! 2).parseNat)
+-- TODO: Should return an option
+def parseMove (s : List Char) : Option (Nat × Nat) :=
+  match s with
+  | x :: ' ' :: y :: _ =>
+    if x.isDigit && y.isDigit then
+      some (Char.parseNat x, Char.parseNat y)
+    else
+      none
+  | _ => none
 
 
 partial def loop (b : Board) : IO Unit := do
@@ -391,21 +395,47 @@ partial def loop (b : Board) : IO Unit := do
 
   b.show
 
-  IO.print "Piece to move: "
-  let input ← stdin.getLine
-  let (i, j) := parseMove input.trim.toList
-  match b.moves i j with
-  | [] => do
-    IO.println "> No moves available. Please try again."
-    loop b
-  | ms => do
-    IO.println s!"> Available moves: {ms}"
+  let rec readInput (s : String) : IO (Nat × Nat) := do
+    match parseMove s.trim.toList with
+    | some (i, j) => return (i, j)
+    | none => do
+      IO.println "x Invalid input. Please try again."
+      IO.print "> "
+      let input ← stdin.getLine
+      readInput input
 
-  IO.print "Move to: "
-  let input ← stdin.getLine
-  let (i', j') := parseMove input.trim.toList
 
-  -- let b' := b.move i j i' j'
+  let rec read1 : IO (Nat × Nat) := do
+    IO.print "Piece to move: "
+    let input ← stdin.getLine
+    let (i, j) <- readInput input
+    let ms := b.moves i j
+    match ms with
+    | [] => do
+      b.show
+      IO.println "x No moves available. Please try again."
+      read1
+    | ms => do
+      IO.println s!"> Available moves: {ms}"
+      return (i, j)
+
+  let (i, j) ← read1
+  let ms := b.moves i j
+
+  let rec read2 : IO (Nat × Nat) := do
+    IO.print "Move to: "
+    let input ← stdin.getLine
+    let (i', j') <- readInput input
+    if (i', j') ∈ ms then
+      return (i', j')
+    else
+      b.show
+      IO.println s!"> Available moves: {ms}"
+      IO.println "x Invalid move. Please try again."
+      read2
+
+  let (i', j') ← read2
+
   loop (b.move i j i' j')
 
 
