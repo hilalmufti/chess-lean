@@ -80,25 +80,15 @@ def make_row (xs : List Piece) (c : Color) : List Square :=
     | x :: xs => go xs ((some (c, x)) :: acc)
   go xs []
 
-def r_w := make_row r Color.white
-def r_b := make_row r Color.black
+def r_white := make_row r Color.white
+def r_black := make_row r Color.black
 
+def pawns : List Piece := List.replicate 8 Piece.pawn
+def ps_white := make_row pawns Color.white
+def ps_black := make_row pawns Color.black
 
-
-
--- def white_row : List Square
-
-def ps : List Square := List.replicate 8 (some Piece.pawn)
 def blank : List Square := List.replicate 8 none
-def b : Board := [r, ps, blank, blank, blank, blank, ps, r]
-def btest : Board := [r,
-                      ps,
-                      blank,
-                      blank,
-                      [none, none, none, some Piece.king, none, none, none, none],
-                      blank,
-                      ps,
-                      r]
+def b : Board := [r_black, ps_black, blank, blank, blank, blank, ps_white, r_white]
 
 
 def Board.starting : Board := b
@@ -369,7 +359,7 @@ def filterXY' (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Na
 def Board.moves (b : Board) (i j : Nat) : List (Nat × Nat) :=
   match b[i][j]! with
   | none => []
-  | some p =>
+  | some (c, p) =>
     let ms := p.moves i j
     match p with
     | Piece.king => ms
