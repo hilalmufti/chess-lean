@@ -3,6 +3,14 @@ inductive Color where
   | black : Color
 
 
+def Color.toString : Color -> String
+  | Color.white => "white"
+  | Color.black => "black"
+
+instance : ToString Color where
+  toString c := c.toString
+
+
 inductive Piece where
   | king : Piece
   | queen : Piece
@@ -29,12 +37,13 @@ instance : ToString Piece where
   toString p := p.toString
 
 
-structure ColoredPiece where
-  color : Color
-  piece : Piece
+abbrev ColorPiece := Color × Piece
 
 
-def Square := Option Piece
+#eval (Color.white, Piece.king)
+
+
+def Square := Option ColorPiece
 
 instance : Inhabited Square where
   default := none
@@ -44,7 +53,8 @@ def Square.toString (s : Square) : String :=
   match s with
   -- | none => "⬝"
   | none => "."
-  | some p => p.toString
+  | some (c, p) => p.toString
+
 
 
 instance : ToString Square where
@@ -59,9 +69,25 @@ abbrev Position := (Nat, Nat)
 
 def Board.empty : Board := List.replicate 8 (List.replicate 8 none)
 
+def r : List Piece := [Piece.rook, Piece.knight, Piece.bishop, Piece.queen, Piece.king,
+                       Piece.bishop, Piece.knight, Piece.rook]
 
-def r : List Square := [some Piece.rook, some Piece.knight, some Piece.bishop, some Piece.queen,
-                        some Piece.king, some Piece.bishop, some Piece.knight, some Piece.rook]
+
+def make_row (xs : List Piece) (c : Color) : List Square :=
+  let rec go (xs : List Piece) (acc : List Square) : List Square :=
+    match xs with
+    | [] => acc
+    | x :: xs => go xs ((some (c, x)) :: acc)
+  go xs []
+
+def r_w := make_row r Color.white
+def r_b := make_row r Color.black
+
+
+
+
+-- def white_row : List Square
+
 def ps : List Square := List.replicate 8 (some Piece.pawn)
 def blank : List Square := List.replicate 8 none
 def b : Board := [r, ps, blank, blank, blank, blank, ps, r]
@@ -73,6 +99,7 @@ def btest : Board := [r,
                       blank,
                       ps,
                       r]
+
 
 def Board.starting : Board := b
 
@@ -382,9 +409,9 @@ def Char.parseNat (c : Char) : Nat :=
 -- TODO: Should return an option
 def parseMove (s : List Char) : Option (Nat × Nat) :=
   match s with
-  | x :: ' ' :: y :: _ =>
+  | x :: ' ' :: y :: [] =>
     if x.isDigit && y.isDigit then
-      some (Char.parseNat x, Char.parseNat y)
+      (Char.parseNat x, Char.parseNat y)
     else
       none
   | _ => none
@@ -395,20 +422,24 @@ partial def loop (b : Board) : IO Unit := do
 
   b.show
 
-  let rec readInput (s : String) : IO (Nat × Nat) := do
+  let rec readInput (s : String) (ms : List (Nat × Nat)) : IO (Nat × Nat) := do
     match parseMove s.trim.toList with
     | some (i, j) => return (i, j)
     | none => do
       IO.println "x Invalid input. Please try again."
+      IO.println ""
+      b.show
+      if ms ≠ [] then
+        IO.println s!"> Available moves: {ms}"
       IO.print "> "
       let input ← stdin.getLine
-      readInput input
+      readInput input ms
 
 
   let rec read1 : IO (Nat × Nat) := do
     IO.print "Piece to move: "
     let input ← stdin.getLine
-    let (i, j) <- readInput input
+    let (i, j) <- readInput input []
     let ms := b.moves i j
     match ms with
     | [] => do
@@ -425,7 +456,7 @@ partial def loop (b : Board) : IO Unit := do
   let rec read2 : IO (Nat × Nat) := do
     IO.print "Move to: "
     let input ← stdin.getLine
-    let (i', j') <- readInput input
+    let (i', j') <- readInput input ms
     if (i', j') ∈ ms then
       return (i', j')
     else
