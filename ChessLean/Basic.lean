@@ -251,14 +251,42 @@ def dist (x y : Nat) : Nat :=
     y - x
 
 
-def blockX? (b : Board) (i j : Nat) (n : Nat) : Bool :=
-  let rec go (j : Nat) (n : Nat) : Bool :=
+def down (i j : Nat) : Nat × Nat :=
+  (Nat.succ i, j)
+
+
+def right (i j : Nat) : Nat × Nat :=
+  (i, Nat.succ j)
+
+
+def diag (i j : Nat) : Nat × Nat :=
+  (Nat.succ i, Nat.succ j)
+
+
+def blocks? (xss : Board) (i j : Nat) (n : Nat) (f : Nat → Nat → Nat × Nat) : Bool :=
+  let rec go (i j : Nat) (n : Nat) : Bool :=
     match n with
     | 0 => false
-    | Nat.succ n' => match b[i][j]! with
-      | none => go (Nat.succ j) n'
+    | Nat.succ n => match xss[i][j]! with
+      | none =>
+        let (i', j') := f i j -- TODO: remove this awkwardness
+        go i' j' n
       | _ => true
-  go (Nat.succ j) n
+  let (i', j') := f i j
+  go i' j' n
+
+
+def blockX? (xss : Board) (i j : Nat) (n : Nat) : Bool :=
+  blocks? xss i j n right
+
+
+-- TODO: refactor
+def blockY? (xss : Board) (i j : Nat) (n : Nat) : Bool :=
+  blocks? xss i j n down
+
+
+def blockXY? (b : Board) (i j : Nat) (n : Nat) : Bool :=
+  blocks? b i j n diag
 
 
 def filterX (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
@@ -276,15 +304,7 @@ def filterX (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat)
   go xs []
 
 
--- TODO: refactor
-def blockY? (b : Board) (i j : Nat) (n : Nat) : Bool :=
-  let rec go (i : Nat) (n : Nat) : Bool :=
-    match n with
-    | 0 => false
-    | Nat.succ n' => match b[i][j]! with
-      | none => go (Nat.succ i) n'
-      | _ => true
-  go (Nat.succ i) n
+
 
 
 def filterY (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat) :=
@@ -300,16 +320,6 @@ def filterY (b : Board) (i j : Nat) (xs : List (Nat × Nat)) : List (Nat × Nat)
       else
         go ms ((i', j') :: acc)
   go xs []
-
-
-def blockXY? (b : Board) (i j : Nat) (n : Nat) : Bool :=
-  let rec go (i j : Nat) (n : Nat) : Bool :=
-    match n with
-    | 0 => false
-    | Nat.succ n' => match b[i][j]! with
-      | none => go (Nat.succ i) (Nat.succ j) n'
-      | _ => true
-  go (Nat.succ i) (Nat.succ j) n
 
 
 -- TODO: I think this is wrong? Specifically the dist part
@@ -386,10 +396,17 @@ def Board.show (b : Board) : IO Unit :=
   IO.println (Board.toString b)
 
 
+-- TODO: case of moving to itself
 def Board.move (b : Board) (x1 y1 : Nat) (x2 y2 : Nat) : Board :=
   let p := b[x1][y1]!
   let b' := b.set x2 y2 p
   b'.set x1 y1 none
+
+
+#eval (b.move 6 3 4 3)
+#eval blockX? (b.move 6 3 4 3) 4 0 3
+#eval blocks? (b.move 6 3 4 3) 4 0 3 right
+
 
 
 def Char.parseNat (c : Char) : Nat :=
